@@ -5,7 +5,7 @@ from .services import analyze_emotions  # вызов заглушки-анали
 class PhotoAnalysisSerializer(serializers.ModelSerializer):
     class Meta:
         model = PhotoAnalysis
-        fields = ["id", "image", "notes", "result_label", "result_score", "created_at"]
+        fields = ["id", "dialog", "image", "notes", "result_label", "result_score", "created_at"]
         read_only_fields = ["result_label", "result_score", "created_at"]
 
     def create(self, validated_data):

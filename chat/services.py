@@ -40,3 +40,27 @@ def generate_ai_reply(dialog):
     text = resp.output_text or "Извини, сейчас не могу ответить."
     # сохраняем как сообщение ассистента
     return Message.objects.create(dialog=dialog, role="assistant", content=text)
+
+
+def generate_photo_comment(label: str, score: float) -> str:
+    """
+    Короткий доброжелательный комментарий по результату анализа фото.
+    Возвращает готовый текст ИИ (2–3 предложения, без диагнозов).
+    """
+    prompt = (
+        "Сделай мягкий комментарий к фотографии клиента. "
+        f"Определённое состояние: {label} (уверенность {score}). "
+        "Пиши как эмпатичный психолог, 2–3 коротких предложения, без диагнозов и категоричности. "
+        "В конце можешь предложить один щадящий шаг самопомощи. Без упоминания, что это ИИ."
+    )
+
+    resp = client.responses.create(
+        model=OPENAI_MODEL,
+        input=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        max_output_tokens=160,
+        temperature=0.7,
+    )
+    return (resp.output_text or "").strip() or "Спасибо за фото. Давайте бережно обсудим, как вы себя чувствуете."

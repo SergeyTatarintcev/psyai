@@ -1,6 +1,14 @@
 from django.db import models
+from chat.models import Dialog  # ← новый импорт
 
 class PhotoAnalysis(models.Model):
+    dialog = models.ForeignKey(  # ← новое поле связи с чатом
+        Dialog,
+        on_delete=models.CASCADE,
+        related_name="photos",
+        null=True,
+        blank=True,
+    )
     image = models.ImageField(upload_to="uploads/%Y/%m/%d/")
     notes = models.CharField(max_length=255, blank=True)   # опциональный комментарий
     result_label = models.CharField(max_length=50, blank=True)  # 'positive' | 'neutral' | 'low'

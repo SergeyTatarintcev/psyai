@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PsyAI — Онлайн-консультант</title>
+  <style>
+    :root { --bg:#0b0d12; --card:#111520; --muted:#9aa3b2; --text:#e9eef7; --accent:#5f8cff; }
+    *{box-sizing:border-box} body{margin:0; font:16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Arial; color:var(--text); background:linear-gradient(180deg,#0b0d12, #0e1420 60%, #0b0d12)}
+    a{color:var(--accent); text-decoration:none}
+    .wrap{max-width:980px; margin:0 auto; padding:24px}
+    .nav{display:flex; gap:20px; align-items:center; justify-content:space-between; padding:12px 0}
+    .nav a{color:var(--text); opacity:.9}
+    .brand{font-weight:700}
+    .btn{display:inline-block; background:var(--accent); color:#fff; padding:12px 18px; border-radius:10px; font-weight:600}
+    .btn.secondary{background:#222a3a}
+    .hero{display:grid; gap:18px; padding:48px 0}
+    .hero h1{font-size:34px; line-height:1.2; margin:0}
+    .hero p{color:var(--muted); margin:0}
+    .grid{display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+    .card{background:var(--card); border:1px solid #1b2332; border-radius:14px; padding:18px}
+    .muted{color:var(--muted)}
+    .section{padding:42px 0}
+    .price{font-size:28px; font-weight:800}
+    footer{padding:36px 0; color:var(--muted); text-align:center}
+  </style>
+</head>
+<body>
+  <header class="wrap nav">
+    <div class="brand">PsyAI</div>
+    <nav>
+      <a href="#about">О нас</a> ·
+      <a href="#prices">Цены</a> ·
+      <a href="#trust">Доверие</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <!-- Hero -->
+    <section class="hero">
+      <h1>Онлайн-консультант с ИИ: безопасно, деликатно, по-человечески</h1>
+      <p class="muted">Расскажите, что вас беспокоит. ИИ-психолог поможет прояснить чувства и предложит мягкие шаги самопомощи.</p>
+      <div style="display:flex; gap:12px; flex-wrap:wrap">
+        <a id="cta-ask-once" class="btn" href="#ask">Задать 1 вопрос бесплатно</a>
+        <a class="btn secondary" href="#signup">Войти / Регистрация</a>
+      </div>
+    </section>
+
+    <!-- Почему нам можно доверять -->
+    <section id="trust" class="section">
+      <h2>Почему нам можно доверять</h2>
+      <div class="grid">
+        <div class="card"><b>Деликатность</b><br><span class="muted">Без оценки и диагнозов. Осторожные формулировки и поддержка.</span></div>
+        <div class="card"><b>Конфиденциальность</b><br><span class="muted">Ваши данные защищены. Для 1 вопроса регистрация не нужна.</span></div>
+        <div class="card"><b>Осмысленные шаги</b><br><span class="muted">Конкретные мягкие рекомендации самопомощи без давления.</span></div>
+      </div>
+    </section>
+
+    <!-- Что умеет консультант -->
+    <section id="about" class="section">
+      <h2>Что умеет наш консультант</h2>
+      <div class="grid">
+        <div class="card"><b>Поддерживающий диалог</b><div class="muted">Помогает разобраться с тревогой, выгоранием, самооценкой и др.</div></div>
+        <div class="card"><b>Анализ по фото (опция)</b><div class="muted">Оценивает общий эмоциональный тон снимка и даёт бережный комментарий.</div></div>
+        <div class="card"><b>История и темы</b><div class="muted">Сохраняет сессии по темам, позволяет возвращаться и отслеживать динамику.</div></div>
+      </div>
+    </section>
+
+    <!-- Цены -->
+    <section id="prices" class="section">
+      <h2>Тарифы</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="price">500 ₽/мес</div>
+          <div><b>Текстовые консультации</b></div>
+          <ul class="muted">
+            <li>Безлимитные темы и сессии</li>
+            <li>История переписки</li>
+            <li>10 сообщений бесплатно на старте</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="price">1000 ₽/мес</div>
+          <div><b>Текст + анализ по фото</b></div>
+          <ul class="muted">
+            <li>Всё из базового тарифа</li>
+            <li>Комментарии к фото от ИИ</li>
+            <li>Личная лента с фото-заметками</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Блок 1 бесплатного вопроса (описание, без логики) -->
+    <section id="ask" class="section">
+      <h2>Один бесплатный вопрос</h2>
+      <p class="muted">Задайте один вопрос без регистрации. Ответ придёт сразу, но история не сохраняется. Для продолжения понадобится регистрация.</p>
+      <div class="card">
+        <p class="muted" style="margin:0">Форма появится после подключения логики (следующий шаг).</p>
+      </div>
+    </section>
+
+    <!-- Регистрация (описание, без логики) -->
+    <section id="signup" class="section">
+      <h2>Регистрация</h2>
+      <p class="muted">Почта и пароль. После входа откроется личный кабинет: темы, чат, фото-анализ и история по календарю.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">© {{ now|default:"PsyAI" }} · Поддержка: support@example.com</div>
+  </footer>
+</body>
+</html>
