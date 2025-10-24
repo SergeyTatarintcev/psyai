@@ -94,11 +94,13 @@
     <!-- Блок 1 бесплатного вопроса (описание, без логики) -->
     <section id="ask" class="section">
       <h2>Один бесплатный вопрос</h2>
-      <p class="muted">Задайте один вопрос без регистрации. Ответ придёт сразу, но история не сохраняется. Для продолжения понадобится регистрация.</p>
+      <p class="muted">Задайте вопрос без регистрации. Ответ придёт сразу, история не сохраняется.</p>
       <div class="card">
-        <p class="muted" style="margin:0">Форма появится после подключения логики (следующий шаг).</p>
-      </div>
-    </section>
+        <input id="freeq" placeholder="Напишите, что вас беспокоит..." style="width:100%;padding:10px;border-radius:6px;border:none;margin-bottom:10px;">
+        <button id="askbtn" class="btn" onclick="askOnce()">Спросить</button>
+        <p id="freeanswer" style="margin-top:12px;color:var(--muted)"></p>
+  </div>
+</section>
 
     <!-- Регистрация (описание, без логики) -->
     <section id="signup" class="section">
@@ -110,5 +112,69 @@
   <footer>
     <div class="wrap">© {{ now|default:"PsyAI" }} · Поддержка: support@example.com</div>
   </footer>
+
+  <script>
+async function askOnce() {
+  const input = document.getElementById('freeq');
+  const btn = document.getElementById('askbtn');
+  const out = document.getElementById('freeanswer');
+
+  const msg = input.value.trim();
+  if (!msg) { out.textContent = "Введите вопрос."; return; }
+
+  btn.disabled = true;
+  input.disabled = true;
+  out.textContent = "ИИ размышляет...";
+
+  try {
+    const res = await fetch("/api/free-question/", {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ message: msg })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      if (data?.need_signup) {
+        out.innerHTML = `${data.message} <a href="#signup">Зарегистрироваться</a>`;
+        // жёстко блокируем форму, чтобы нельзя было спрашивать дальше
+        btn.disabled = true;
+        input.disabled = true;
+        return;
+      }
+      out.textContent = data.error || "Ошибка.";
+      return;
+    }
+
+    // успешный ответ
+    out.textContent = data.answer || "—";
+    const remain = typeof data.remaining === "number" ? data.remaining : null;
+
+    if (remain !== null) {
+      if (remain <= 0) {
+        out.innerHTML += ` — лимит бесплатных вопросов исчерпан. <a href="#signup">Зарегистрироваться</a>`;
+        btn.disabled = true;
+        input.disabled = true;
+      } else {
+        out.textContent += ` — осталось: ${remain}`;
+        // оставляем возможность задать следующий вопрос
+        btn.disabled = false;
+        input.disabled = false;
+        input.value = "";
+        input.focus();
+      }
+    } else {
+      // на всякий случай
+      btn.disabled = false;
+      input.disabled = false;
+    }
+  } catch(e) {
+    out.textContent = "Сбой сети. Повторите позже.";
+    btn.disabled = false;
+    input.disabled = false;
+  }
+}
+</script>
+
 </body>
 </html>
