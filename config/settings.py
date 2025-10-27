@@ -17,6 +17,15 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-change-me")
 DEBUG = os.getenv("DJANGO_DEBUG", "0") in ("1", "true", "True")
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")]
 
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+    "chrome-extension://eipdnjedkpcnlmmdfdkgfpljanehloah",  # Boomerang
+]
+
+CORS_ALLOW_ALL_ORIGINS = True  # только для локальной разработки!
+
+
 # --- I18N / TZ ---
 LANGUAGE_CODE = "ru-ru"
 TIME_ZONE = "Europe/Amsterdam"
@@ -31,9 +40,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    
 
     # third-party
     "rest_framework",
+    "rest_framework.authtoken",
     "channels",
 
     # local
@@ -83,6 +94,7 @@ CHANNEL_LAYERS = {
 # --- DRF базовые настройки ---
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
