@@ -7,6 +7,9 @@ from .views import (
     me,
     token_login,
     upgrade,
+    logout_token,
+    downgrade,
+    status,
 )
 
 app_name = "accounts"
@@ -18,4 +21,7 @@ urlpatterns = [
     path("me/", me, name="me"),
     path("token-login/", token_login, name="token-login"),
     path("upgrade/", upgrade, name="upgrade"),
+    path("logout-token/", logout_token, name="logout-token"),
+    path("status/", status, name="status"),
+    path("downgrade/", downgrade, name="downgrade"),
 ]

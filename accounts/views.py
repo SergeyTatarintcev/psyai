@@ -5,6 +5,7 @@ from django.http import JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
+from accounts.models import Profile
 
 # DRF: токены + права для /me
 from rest_framework.authtoken.models import Token
@@ -146,3 +147,39 @@ def upgrade(request):
     profile.save()
 
     return JsonResponse({"success": True, "is_paid": True})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def logout_token(request):
+    """Отозвать текущий DRF-токен."""
+    Token.objects.filter(user=request.user).delete()
+    return JsonResponse({"success": True})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def status(request):
+    """Статус профиля: тариф и счётчики."""
+    user = request.user
+    # гарантия наличия профиля
+    from accounts.models import Profile
+    profile, _ = Profile.objects.get_or_create(user=user)
+
+    return JsonResponse({
+        "email": user.email,
+        "is_paid": profile.is_paid,
+        "free_messages_used": profile.free_messages_used,
+        "free_messages_limit": profile.free_messages_limit,
+    })
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def downgrade(request):
+    """Вернуть бесплатный тариф пользователю (для тестов лимита)."""
+    profile, _ = Profile.objects.get_or_create(user=request.user)
+    profile.is_paid = False
+    # по желанию сбросить счётчик:
+    profile.free_messages_used = 0
+    profile.save(update_fields=["is_paid", "free_messages_used"])
+    return JsonResponse({"success": True, "is_paid": False})

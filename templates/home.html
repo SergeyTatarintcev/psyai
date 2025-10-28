@@ -12,7 +12,7 @@
     .nav{display:flex; gap:20px; align-items:center; justify-content:space-between; padding:12px 0}
     .nav a{color:var(--text); opacity:.9}
     .brand{font-weight:700}
-    .btn{display:inline-block; background:var(--accent); color:#fff; padding:12px 18px; border-radius:10px; font-weight:600}
+    .btn{display:inline-block; background:var(--accent); color:#fff; padding:12px 18px; border-radius:10px; font-weight:600; cursor:pointer; border:none}
     .btn.secondary{background:#222a3a}
     .hero{display:grid; gap:18px; padding:48px 0}
     .hero h1{font-size:34px; line-height:1.2; margin:0}
@@ -23,6 +23,10 @@
     .section{padding:42px 0}
     .price{font-size:28px; font-weight:800}
     footer{padding:36px 0; color:var(--muted); text-align:center}
+    /* auth panel */
+    #auth-panel{margin:12px 0; padding:12px; border:1px solid #1b2332; border-radius:10px; background:#0f1422}
+    #auth-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+    #auth-status small{color:var(--muted)}
   </style>
 </head>
 <body>
@@ -91,7 +95,7 @@
       </div>
     </section>
 
-    <!-- Блок 1 бесплатного вопроса (описание, без логики) -->
+    <!-- Один бесплатный вопрос -->
     <section id="ask" class="section">
       <h2>Один бесплатный вопрос</h2>
       <p class="muted">Задайте вопрос без регистрации. Ответ придёт сразу, история не сохраняется.</p>
@@ -99,13 +103,28 @@
         <input id="freeq" placeholder="Напишите, что вас беспокоит..." style="width:100%;padding:10px;border-radius:6px;border:none;margin-bottom:10px;">
         <button id="askbtn" class="btn" onclick="askOnce()">Спросить</button>
         <p id="freeanswer" style="margin-top:12px;color:var(--muted)"></p>
-  </div>
-</section>
+      </div>
+    </section>
 
-    <!-- Регистрация (описание, без логики) -->
+    <!-- Регистрация / ЛК -->
     <section id="signup" class="section">
       <h2>Регистрация</h2>
       <p class="muted">Почта и пароль. После входа откроется личный кабинет: темы, чат, фото-анализ и история по календарю.</p>
+
+      <!-- ПАНЕЛЬ АВТОРИЗАЦИИ -->
+      <div id="auth-panel" class="card">
+        <div id="auth-status">Статус: гость <small>(3 бесплатных сообщения)</small></div>
+        <div id="auth-actions">
+          <button id="btn-login" class="btn">Войти</button>
+          <button id="btn-signup" class="btn secondary">Зарегистрироваться</button> <!-- ← ДОБАВИЛИ -->
+          <button id="btn-logout" class="btn secondary" style="display:none;">Выйти</button>
+          <button id="btn-upgrade" class="btn secondary" style="display:none;">Оплатить (заглушка)</button>
+          <button id="btn-status" class="btn secondary" style="display:none;">Статус</button>
+
+        </div>
+        <p id="auth-msg" class="muted" style="margin-top:8px;"></p>
+      </div>
+      <!-- /ПАНЕЛЬ АВТОРИЗАЦИИ -->
     </section>
   </main>
 
@@ -114,67 +133,189 @@
   </footer>
 
   <script>
-async function askOnce() {
-  const input = document.getElementById('freeq');
-  const btn = document.getElementById('askbtn');
-  const out = document.getElementById('freeanswer');
+  // ==== AUTH & API HELPERS ====
+  const TOKEN_KEY = 'psyai_token';
 
-  const msg = input.value.trim();
-  if (!msg) { out.textContent = "Введите вопрос."; return; }
+  function getToken(){ return localStorage.getItem(TOKEN_KEY) || null; }
+  function setToken(t){ t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); }
 
-  btn.disabled = true;
-  input.disabled = true;
-  out.textContent = "ИИ размышляет...";
+  async function apiFetch(url, opts = {}) {
+    const token = getToken();
+    const headers = Object.assign({}, opts.headers || {});
+    if (token) headers['Authorization'] = 'Token ' + token;
+    if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
 
-  try {
-    const res = await fetch("/api/free-question/", {
-      method: "POST",
-      headers: { "Content-Type":"application/json" },
-      body: JSON.stringify({ message: msg })
-    });
-    const data = await res.json();
+    const res = await fetch(url, Object.assign({}, opts, { headers }));
+    let data = null;
+    try { data = await res.json(); } catch(_) {}
 
     if (!res.ok) {
-      if (data?.need_signup) {
-        out.innerHTML = `${data.message} <a href="#signup">Зарегистрироваться</a>`;
-        // жёстко блокируем форму, чтобы нельзя было спрашивать дальше
-        btn.disabled = true;
-        input.disabled = true;
-        return;
-      }
-      out.textContent = data.error || "Ошибка.";
+      const msg = (data && (data.detail || data.error || data.message)) || ('HTTP ' + res.status);
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  async function updateAuthUI() {
+    const statusEl = document.getElementById('auth-status');
+    const msgEl = document.getElementById('auth-msg');
+    const bLogin = document.getElementById('btn-login');
+    const bLogout = document.getElementById('btn-logout');
+    const bUpgrade = document.getElementById('btn-upgrade');
+    const bStatus = document.getElementById('btn-status');
+
+    msgEl.textContent = '';
+    const token = getToken();
+
+    if (!token) {
+      statusEl.innerHTML = 'Статус: гость <small>(3 бесплатных сообщения)</small>';
+      bLogin.style.display = '';
+      bLogout.style.display = 'none';
+      bUpgrade.style.display = 'none';
+      bStatus.style.display = 'none';
       return;
     }
 
-    // успешный ответ
-    out.textContent = data.answer || "—";
-    const remain = typeof data.remaining === "number" ? data.remaining : null;
+    try {
+      const me = await apiFetch('/api/accounts/me/');
+      let suffix = '';
+      try {
+        const st = await apiFetch('/api/accounts/status/');
+        suffix = st.is_paid
+          ? ' · тариф: <b>оплаченный</b>'
+          : ` · тариф: бесплатный (${st.free_messages_used}/${st.free_messages_limit})`;
+      } catch(_) {}
 
-    if (remain !== null) {
-      if (remain <= 0) {
-        out.innerHTML += ` — лимит бесплатных вопросов исчерпан. <a href="#signup">Зарегистрироваться</a>`;
-        btn.disabled = true;
-        input.disabled = true;
+      statusEl.innerHTML = `Вошли как: <b>${me.email}</b>${suffix}`;
+      bLogin.style.display = 'none';
+      bLogout.style.display = '';
+      bUpgrade.style.display = '';
+      bStatus.style.display = '';
+    } catch (e) {
+      setToken(null);
+      statusEl.innerHTML = 'Статус: гость <small>(3 бесплатных сообщения)</small>';
+      bLogin.style.display = '';
+      bLogout.style.display = 'none';
+      bUpgrade.style.display = 'none';
+      bStatus.style.display = 'none';
+      msgEl.textContent = 'Токен недействителен. Выполните вход.';
+    }
+  }
+
+  // UI handlers
+  document.addEventListener('click', async (ev) => {
+    const id = ev.target && ev.target.id;
+    if (!id) return;
+
+    const msgEl = document.getElementById('auth-msg');
+
+    if (id === 'btn-login') {
+      const email = prompt('E-mail:', 'test@mail.com');
+      if (!email) return;
+      const pwd = prompt('Пароль:', '12345');
+      if (!pwd) return;
+      msgEl.textContent = 'Вход...';
+      try {
+        const data = await apiFetch('/api/accounts/token-login/', {
+          method: 'POST',
+          body: JSON.stringify({ email, password: pwd })
+        });
+        setToken(data.token);
+        await updateAuthUI();
+        msgEl.textContent = 'Вход выполнен.';
+      } catch (e) {
+        msgEl.textContent = 'Ошибка входа: ' + e.message;
+      }
+    }
+
+    if (id === 'btn-logout') {
+      msgEl.textContent = 'Выход...';
+      try { await apiFetch('/api/accounts/logout-token/', { method: 'POST', body: '{}' }); } catch(_) {}
+      setToken(null);
+      await updateAuthUI();
+      msgEl.textContent = 'Вы вышли.';
+    }
+
+    if (id === 'btn-upgrade') {
+      msgEl.textContent = 'Активация тарифа...';
+      try {
+        await apiFetch('/api/accounts/upgrade/', { method: 'POST', body: '{}' });
+        await updateAuthUI();
+        msgEl.textContent = 'Оплата (заглушка) активирована.';
+      } catch (e) {
+        msgEl.textContent = 'Ошибка: ' + e.message;
+      }
+    }
+
+    if (id === 'btn-status') {
+      try {
+        const st = await apiFetch('/api/accounts/status/');
+        alert(`Тариф: ${st.is_paid ? 'оплаченный' : 'бесплатный'}\nИспользовано: ${st.free_messages_used}/${st.free_messages_limit}`);
+      } catch (e) {
+        alert('Ошибка статуса: ' + e.message);
+      }
+    }
+  });
+
+  // ==== FREE QUESTION (оставил твой код, только перевёл на fetch как было) ====
+  async function askOnce() {
+    const input = document.getElementById('freeq');
+    const btn = document.getElementById('askbtn');
+    const out = document.getElementById('freeanswer');
+
+    const msg = input.value.trim();
+    if (!msg) { out.textContent = "Введите вопрос."; return; }
+
+    btn.disabled = true;
+    input.disabled = true;
+    out.textContent = "ИИ размышляет...";
+
+    try {
+      const data = await apiFetch("/api/free-question/", {
+        method: "POST",
+        body: JSON.stringify({ message: msg })
+  });
+
+
+      if (!res.ok) {
+        if (data?.need_signup) {
+          out.innerHTML = `${data.message} <a href="#signup">Зарегистрироваться</a>`;
+          btn.disabled = true;
+          input.disabled = true;
+          return;
+        }
+        out.textContent = data.error || "Ошибка.";
+        return;
+      }
+
+      out.textContent = data.answer || "—";
+      const remain = typeof data.remaining === "number" ? data.remaining : null;
+
+      if (remain !== null) {
+        if (remain <= 0) {
+          out.innerHTML += ` — лимит бесплатных вопросов исчерпан. <a href="#signup">Зарегистрироваться</a>`;
+          btn.disabled = true;
+          input.disabled = true;
+        } else {
+          out.textContent += ` — осталось: ${remain}`;
+          btn.disabled = false;
+          input.disabled = false;
+          input.value = "";
+          input.focus();
+        }
       } else {
-        out.textContent += ` — осталось: ${remain}`;
-        // оставляем возможность задать следующий вопрос
         btn.disabled = false;
         input.disabled = false;
-        input.value = "";
-        input.focus();
       }
-    } else {
-      // на всякий случай
+    } catch(e) {
+      out.textContent = "Сбой сети. Повторите позже.";
       btn.disabled = false;
       input.disabled = false;
     }
-  } catch(e) {
-    out.textContent = "Сбой сети. Повторите позже.";
-    btn.disabled = false;
-    input.disabled = false;
   }
-}
-</script>
 
+  // init
+  updateAuthUI();
+  </script>
 </body>
 </html>
