@@ -6,7 +6,8 @@
   <title>PsyAI — Онлайн-консультант</title>
   <style>
     :root { --bg:#0b0d12; --card:#111520; --muted:#9aa3b2; --text:#e9eef7; --accent:#5f8cff; }
-    *{box-sizing:border-box} body{margin:0; font:16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Arial; color:var(--text); background:linear-gradient(180deg,#0b0d12, #0e1420 60%, #0b0d12)}
+    *{box-sizing:border-box}
+    body{margin:0; font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--text); background:linear-gradient(180deg,#0b0d12,#0e1420 60%,#0b0d12)}
     a{color:var(--accent); text-decoration:none}
     .wrap{max-width:980px; margin:0 auto; padding:24px}
     .nav{display:flex; gap:20px; align-items:center; justify-content:space-between; padding:12px 0}
@@ -116,15 +117,28 @@
         <div id="auth-status">Статус: гость <small>(3 бесплатных сообщения)</small></div>
         <div id="auth-actions">
           <button id="btn-login" class="btn">Войти</button>
-          <button id="btn-signup" class="btn secondary">Зарегистрироваться</button> <!-- ← ДОБАВИЛИ -->
+          <button id="btn-signup" class="btn secondary">Зарегистрироваться</button>
           <button id="btn-logout" class="btn secondary" style="display:none;">Выйти</button>
           <button id="btn-upgrade" class="btn secondary" style="display:none;">Оплатить (заглушка)</button>
           <button id="btn-status" class="btn secondary" style="display:none;">Статус</button>
-
         </div>
         <p id="auth-msg" class="muted" style="margin-top:8px;"></p>
       </div>
       <!-- /ПАНЕЛЬ АВТОРИЗАЦИИ -->
+    </section>
+
+    <!-- Чат -->
+    <section id="chat" class="section">
+      <h2>Ваш чат с консультантом</h2>
+      <p class="muted">Сообщения сохраняются, и вы можете продолжить позже.</p>
+      <div id="chat-box" class="card" style="height:300px; overflow-y:auto; margin-bottom:10px; padding:10px;">
+        <div id="chat-messages" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input id="chat-input" type="text" placeholder="Введите сообщение..." style="flex:1; padding:10px; border-radius:8px; border:none;">
+        <button id="chat-send" class="btn" onclick="sendChatMessage()">Отправить</button>
+      </div>
+      <p id="chat-status" class="muted" style="margin-top:8px;"></p>
     </section>
   </main>
 
@@ -135,7 +149,6 @@
   <script>
   // ==== AUTH & API HELPERS ====
   const TOKEN_KEY = 'psyai_token';
-
   function getToken(){ return localStorage.getItem(TOKEN_KEY) || null; }
   function setToken(t){ t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); }
 
@@ -148,7 +161,6 @@
     const res = await fetch(url, Object.assign({}, opts, { headers }));
     let data = null;
     try { data = await res.json(); } catch(_) {}
-
     if (!res.ok) {
       const msg = (data && (data.detail || data.error || data.message)) || ('HTTP ' + res.status);
       throw new Error(msg);
@@ -160,6 +172,7 @@
     const statusEl = document.getElementById('auth-status');
     const msgEl = document.getElementById('auth-msg');
     const bLogin = document.getElementById('btn-login');
+    const bSignup = document.getElementById('btn-signup');
     const bLogout = document.getElementById('btn-logout');
     const bUpgrade = document.getElementById('btn-upgrade');
     const bStatus = document.getElementById('btn-status');
@@ -170,6 +183,7 @@
     if (!token) {
       statusEl.innerHTML = 'Статус: гость <small>(3 бесплатных сообщения)</small>';
       bLogin.style.display = '';
+      bSignup.style.display = '';
       bLogout.style.display = 'none';
       bUpgrade.style.display = 'none';
       bStatus.style.display = 'none';
@@ -181,20 +195,29 @@
       let suffix = '';
       try {
         const st = await apiFetch('/api/accounts/status/');
-        suffix = st.is_paid
-          ? ' · тариф: <b>оплаченный</b>'
-          : ` · тариф: бесплатный (${st.free_messages_used}/${st.free_messages_limit})`;
+        if (st.is_paid) {
+          suffix = ' · тариф: <b>оплаченный</b>';
+        } else {
+          const remaining = Math.max(st.free_messages_limit - st.free_messages_used, 0);
+          suffix = ` · тариф: бесплатный (осталось: ${remaining}/${st.free_messages_limit})`;
+        }
       } catch(_) {}
 
       statusEl.innerHTML = `Вошли как: <b>${me.email}</b>${suffix}`;
       bLogin.style.display = 'none';
+      bSignup.style.display = 'none';
       bLogout.style.display = '';
       bUpgrade.style.display = '';
       bStatus.style.display = '';
+
+      // ← после успешного входа/регистрации подключаем чат
+      try { await ensureDialog(); await loadChatHistory(); } catch(_) {}
+
     } catch (e) {
       setToken(null);
       statusEl.innerHTML = 'Статус: гость <small>(3 бесплатных сообщения)</small>';
       bLogin.style.display = '';
+      bSignup.style.display = '';
       bLogout.style.display = 'none';
       bUpgrade.style.display = 'none';
       bStatus.style.display = 'none';
@@ -202,7 +225,7 @@
     }
   }
 
-  // UI handlers
+  // === UI handlers (login / signup / logout / upgrade / status)
   document.addEventListener('click', async (ev) => {
     const id = ev.target && ev.target.id;
     if (!id) return;
@@ -210,27 +233,33 @@
     const msgEl = document.getElementById('auth-msg');
 
     if (id === 'btn-login') {
-      const email = prompt('E-mail:', 'test@mail.com');
-      if (!email) return;
-      const pwd = prompt('Пароль:', '12345');
-      if (!pwd) return;
+      const email = prompt('E-mail:', 'test@mail.com'); if (!email) return;
+      const pwd = prompt('Пароль:', '12345'); if (!pwd) return;
       msgEl.textContent = 'Вход...';
       try {
-        const data = await apiFetch('/api/accounts/token-login/', {
-          method: 'POST',
-          body: JSON.stringify({ email, password: pwd })
-        });
+        const data = await apiFetch('/api/accounts/token-login/', { method:'POST', body: JSON.stringify({ email, password: pwd }) });
         setToken(data.token);
         await updateAuthUI();
         msgEl.textContent = 'Вход выполнен.';
-      } catch (e) {
-        msgEl.textContent = 'Ошибка входа: ' + e.message;
-      }
+      } catch (e) { msgEl.textContent = 'Ошибка входа: ' + e.message; }
+    }
+
+    if (id === 'btn-signup') {
+      const email = prompt('E-mail для регистрации:', 'newuser@mail.com'); if (!email) return;
+      const pwd = prompt('Пароль:', '12345'); if (!pwd) return;
+      msgEl.textContent = 'Регистрация...';
+      try {
+        await apiFetch('/api/accounts/register/', { method:'POST', body: JSON.stringify({ email, password: pwd }) });
+        const data = await apiFetch('/api/accounts/token-login/', { method:'POST', body: JSON.stringify({ email, password: pwd }) });
+        setToken(data.token);
+        await updateAuthUI();
+        msgEl.textContent = 'Регистрация и вход выполнены.';
+      } catch (e) { msgEl.textContent = 'Ошибка регистрации: ' + e.message; }
     }
 
     if (id === 'btn-logout') {
       msgEl.textContent = 'Выход...';
-      try { await apiFetch('/api/accounts/logout-token/', { method: 'POST', body: '{}' }); } catch(_) {}
+      try { await apiFetch('/api/accounts/logout-token/', { method:'POST', body: '{}' }); } catch(_) {}
       setToken(null);
       await updateAuthUI();
       msgEl.textContent = 'Вы вышли.';
@@ -239,25 +268,21 @@
     if (id === 'btn-upgrade') {
       msgEl.textContent = 'Активация тарифа...';
       try {
-        await apiFetch('/api/accounts/upgrade/', { method: 'POST', body: '{}' });
+        await apiFetch('/api/accounts/upgrade/', { method:'POST', body: '{}' });
         await updateAuthUI();
         msgEl.textContent = 'Оплата (заглушка) активирована.';
-      } catch (e) {
-        msgEl.textContent = 'Ошибка: ' + e.message;
-      }
+      } catch (e) { msgEl.textContent = 'Ошибка: ' + e.message; }
     }
 
     if (id === 'btn-status') {
       try {
         const st = await apiFetch('/api/accounts/status/');
         alert(`Тариф: ${st.is_paid ? 'оплаченный' : 'бесплатный'}\nИспользовано: ${st.free_messages_used}/${st.free_messages_limit}`);
-      } catch (e) {
-        alert('Ошибка статуса: ' + e.message);
-      }
+      } catch (e) { alert('Ошибка статуса: ' + e.message); }
     }
   });
 
-  // ==== FREE QUESTION (оставил твой код, только перевёл на fetch как было) ====
+  // ==== FREE QUESTION (через apiFetch)
   async function askOnce() {
     const input = document.getElementById('freeq');
     const btn = document.getElementById('askbtn');
@@ -266,50 +291,88 @@
     const msg = input.value.trim();
     if (!msg) { out.textContent = "Введите вопрос."; return; }
 
-    btn.disabled = true;
-    input.disabled = true;
-    out.textContent = "ИИ размышляет...";
+    btn.disabled = true; input.disabled = true; out.textContent = "ИИ размышляет...";
 
     try {
-      const data = await apiFetch("/api/free-question/", {
-        method: "POST",
-        body: JSON.stringify({ message: msg })
-  });
-
-
-      if (!res.ok) {
-        if (data?.need_signup) {
-          out.innerHTML = `${data.message} <a href="#signup">Зарегистрироваться</a>`;
-          btn.disabled = true;
-          input.disabled = true;
-          return;
-        }
-        out.textContent = data.error || "Ошибка.";
-        return;
-      }
-
+      const data = await apiFetch("/api/free-question/", { method:"POST", body: JSON.stringify({ message: msg }) });
       out.textContent = data.answer || "—";
       const remain = typeof data.remaining === "number" ? data.remaining : null;
 
       if (remain !== null) {
         if (remain <= 0) {
           out.innerHTML += ` — лимит бесплатных вопросов исчерпан. <a href="#signup">Зарегистрироваться</a>`;
-          btn.disabled = true;
-          input.disabled = true;
+          btn.disabled = true; input.disabled = true;
         } else {
           out.textContent += ` — осталось: ${remain}`;
-          btn.disabled = false;
-          input.disabled = false;
-          input.value = "";
-          input.focus();
+          btn.disabled = false; input.disabled = false; input.value = ""; input.focus();
         }
+        await updateAuthUI(); // обновим панель
       } else {
-        btn.disabled = false;
-        input.disabled = false;
+        btn.disabled = false; input.disabled = false; input.value = ""; input.focus();
       }
     } catch(e) {
-      out.textContent = "Сбой сети. Повторите позже.";
-      btn.disabled = false;
+      const msgTxt = String(e.message || '');
+      if (msgTxt.toLowerCase().includes('csrf')) {
+        out.innerHTML = `Чтобы продолжить общение, <a href="#signup">войдите</a> в аккаунт или <a href="#signup">зарегистрируйтесь</a>.`;
+      } else {
+        out.textContent = "Ошибка: " + msgTxt;
+      }
+      btn.disabled = false; input.disabled = false;
+    }
+  }
+
+  // ==== CHAT ====
+  let myDialogId = null;
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    if (getToken()) {
+      try { await ensureDialog(); await loadChatHistory(); } catch(_) {}
+    } else {
+      const s = document.getElementById("chat-status");
+      if (s) s.textContent = "Чтобы пользоваться чатом, войдите в аккаунт.";
+    }
+  });
+
+  async function ensureDialog() {
+    const data = await apiFetch("/api/chat/my/ensure/");
+    myDialogId = data.dialog_id || null;
+  }
+
+  async function loadChatHistory() {
+    if (!myDialogId) return;
+    const msgs = await apiFetch(`/api/chat/dialogs/${myDialogId}/messages/`);
+    const box = document.getElementById("chat-messages");
+    box.innerHTML = "";
+    msgs.forEach(m => {
+      const div = document.createElement("div");
+      div.textContent = `${m.role === "user" ? "Вы" : "ИИ"}: ${m.content}`;
+      div.style.textAlign = m.role === "user" ? "right" : "left";
+      box.appendChild(div);
+    });
+    box.parentElement.scrollTop = box.parentElement.scrollHeight;
+  }
+
+  async function sendChatMessage() {
+    const input = document.getElementById("chat-input");
+    const status = document.getElementById("chat-status");
+    const text = (input.value || "").trim();
+
+    if (!text) return;
+    if (!getToken()) { status.textContent = "Войдите, чтобы отправлять сообщения."; return; }
+    if (!myDialogId) { status.textContent = "Нет активного чата. Обновите страницу."; return; }
+
+    input.disabled = true; status.textContent = "ИИ размышляет...";
+    try {
+      await apiFetch(`/api/chat/dialogs/${myDialogId}/messages/`, {
+        method:"POST",
+        body: JSON.stringify({ role: "user", content: text })
+      });
+      input.value = "";
+      await loadChatHistory();
+      status.textContent = "Ответ получен.";
+    } catch (e) {
+      status.textContent = e.message || "Ошибка отправки.";
+    } finally {
       input.disabled = false;
     }
   }
